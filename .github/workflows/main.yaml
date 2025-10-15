@@ -29,14 +29,6 @@ jobs:
       uses: warchant/setup-sonar-scanner@v9
       with:
         version: 7.2.0.5079
-
-    - name: SonarCloud Scan
-      uses: SonarSource/sonarcloud-github-action@master
-      env:
-        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-      with:
-        projectKey: ${{secrets.SONAR_PROJECT_KEY}}  
-        organization: ${{ secrets.SONAR_ORGANIZATION }}
     
     - name: SonarQube Scan
       run: sonar-scanner
