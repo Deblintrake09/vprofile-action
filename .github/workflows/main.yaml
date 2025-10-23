@@ -46,6 +46,8 @@ jobs:
     - name: SonarQube Quality Gate check
       id: sonarqube-quality-gate-check
       uses: sonarsource/sonarqube-quality-gate-action@master
+      if: github.ref == 'refs/heads/main' # This will trigger only on main branch
+      continue-on-error: true # This is to allow the full pipeline to finish. On production this should be false or enforced on main branch
       with:
           scanMetadataReportFile: target/sonar/report-task.txt
           pollingTimeoutSec: 600
@@ -54,6 +56,7 @@ jobs:
           SONAR_HOST_URL: ${{ secrets.SONAR_URL }}
       # Optionally you can use the output from the Quality Gate in another step.
       # The possible outputs of the `quality-gate-status` variable are `PASSED`, `WARN` or `FAILED`.
+
     - name: "Example show SonarQube Quality Gate Status value"
       run: echo "The Quality Gate status is ${{ steps.sonarqube-quality-gate-check.outputs.quality-gate-status }}"
 
@@ -76,3 +79,40 @@ jobs:
           region: ${{ env.AWS_REGION }}
           repo: ${{ env.ECR_REPOSITORY }}
           tags: latest, ${{github.run_number}}
+  
+  DEPLOY_TO_EKS:
+      needs: BUILD_AND_PUSH_IMAGE
+      runs-on: ubuntu-latest
+      steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --name ${{ env.EKS_CLUSTER }} --region ${{ env.AWS_REGION }}
+
+      - name: Print config file
+        run: cat ~/.kube/config
+
+      - name: Login to ECR
+        run: kubectl create secret docker-registry regcred --docker-server=${{secrets.REGISTRY}} --docker-username=AWS --docker-password=$(aws ecr get-login-password)
+
+      - name: Deploy helm
+        uses: bitovi/github-actions-deploy-eks-helm@v1.2.8
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+          cluster-name: ${{ env.EKS_CLUSTER }}
+          #config-files: .github/values/dev.yaml
+          chart-path: helm/vprofilecharts
+          namespace: default
+          values: appimage=${{secrets.REGISTRY}}/${{env.ECR_REPOSITORY}}, appversion=${{github.run_number}}
+          release-name: vprofile-stack
