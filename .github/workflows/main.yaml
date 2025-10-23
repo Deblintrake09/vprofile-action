@@ -67,18 +67,21 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
 
-      - name: Build and push the image to ECR
-        uses: appleboy/docker-ecr-action@master
+      - name: Extract Branch Name
+        shell: bash
+        run: |
+          echo "branch=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_OUTPUT
+        id: extract_branch
+
+      - name: Build and Push Image to ECR
+        uses: anilrajrimal1/aws-ecr-docker-builder-action@v1.0.0
         with:
-          context: ./
-          file: ./Dockerfile
-          daemon_off: false
-          access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          secret_access: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          registry: ${{secrets.REGISTRY}}
-          region: ${{ env.AWS_REGION }}
-          repo: ${{ env.ECR_REPOSITORY }}
-          tags: latest, ${{github.run_number}}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ env.AWS_REGION }}
+          ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
+          ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
+          BRANCH_NAME: ${{ steps.extract_branch.outputs.branch }}
   
   DEPLOY_TO_EKS:
       needs: BUILD_AND_PUSH_IMAGE
@@ -98,8 +101,8 @@ jobs:
         run: |
           aws eks update-kubeconfig --name ${{ env.EKS_CLUSTER }} --region ${{ env.AWS_REGION }}
 
-      - name: Print config file
-        run: cat ~/.kube/config
+      #- name: Print config file  # for debug purposes only
+      #  run: cat ~/.kube/config  # never print kubeconfig in real workflows
 
       - name: Login to ECR
         run: kubectl create secret docker-registry regcred --docker-server=${{secrets.REGISTRY}} --docker-username=AWS --docker-password=$(aws ecr get-login-password)
