@@ -25,20 +25,21 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
   
-    - name: Setup SonarQube
-      uses: warchant/setup-sonar-scanner@v9
-    
     - name: SonarQube Scan
-      run: sonar-scanner
-          -Dsonar.host.url=${{secrets.SONAR_URL}}
-          -Dsonar.login=${{ secrets.SONAR_TOKEN }}
+      uses: sonarsource/sonarqube-scan-action@master
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        SONAR_HOST_URL: ${{ secrets.SONAR_URL }}
+      with:
+        args: >
           -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION }}
-          -Dsonar.projectKey=${{secrets.SONAR_PROJECT_KEY}}  
+          -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY }}
           -Dsonar.sources=src/
           -Dsonar.junit.reportPaths=target/surefire-reports/
           -Dsonar.jacoco.reportPaths=target/jacoco.exec
           -Dsonar.java.checkstyle.reportPaths=target/checkstyle-result.xml
-          -Dsonar.java.binaries=target/test-classes/com/visualpathit/account/
+          -Dsonar.java.binaries=target/test-classes/
     
     - name: Check Quality Gate Status
       id: sonarqube-quality-gate
